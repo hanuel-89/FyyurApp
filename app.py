@@ -3,6 +3,7 @@
 #----------------------------------------------------------------------------#
 
 import json
+import string
 import dateutil.parser
 import babel
 from flask import Flask, render_template, request, Response, flash, redirect, url_for
@@ -116,6 +117,12 @@ def search_venues():
   # TODO: implement search on venues with partial string search. Ensure it is case-insensitive.
   # seach for Hop should return "The Musical Hop".
   # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
+  query = request.form.get('Hop', '')
+  print("\n\n\n\n\n\n")
+  print(type(query))
+  print("\n\n\n\n\n")
+  all_Venues = Venue.query.filter(Venue.name.like("%"+query+"%")).all()
+  print(all_Venues)
   response={
     "count": 1,
     "data": [{
