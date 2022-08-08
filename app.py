@@ -2,18 +2,21 @@
 # Imports
 #----------------------------------------------------------------------------#
 
+import itertools
 import json
-import string
+import operator
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for
+from flask import Flask, jsonify, render_template, request, Response, flash, redirect, url_for
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
+from sqlalchemy import JSON, select
 from forms import *
 from flask_migrate import Migrate
+from sqlalchemy.sql import func
 #----------------------------------------------------------------------------#
 # App Config.
 #----------------------------------------------------------------------------#
@@ -22,6 +25,7 @@ app = Flask(__name__)
 moment = Moment(app)
 app.config.from_object('config')
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
 
 # TODO: connect to a local postgresql database
 
@@ -37,9 +41,15 @@ class Venue(db.Model):
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     address = db.Column(db.String(120))
-    phone = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
+    genres = db.Column(db.String(50))
+    phone = db.Column(db.String(20))
+    website = db.Column(db.String(500))
+    seeking_talent = db.Column(db.Boolean, default=True)
+    seeking_description = db.Column(db.String(500))
+    artists = db.relationship('Artist', secondary='Shows')
+
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
@@ -54,8 +64,30 @@ class Artist(db.Model):
     genres = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
+    website = db.Column(db.String(500))
+    seeking_venue = db.Column(db.Boolean, default=True)
+    seeking_description = db.Column(db.String(500))
+    venues = db.relationship('Artist', secondary='Shows')
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
+
+# Shows = db.Table('Shows',
+#   venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'), primary_key=True),
+#   artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), primary_key=True),
+#   # artist_name = 'Artist.name',
+#   # venue_name = 'Venue.name',
+#   # artist_image_link = 'Artist.image_link',
+#   start_time = db.Column(db.Date, nullable=False)
+# )
+class Shows(db.Model):
+  __tablename__ = 'Shows'
+
+  id = db.Column(db.Integer, primary_key=True)
+  venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'))
+  artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'))
+  start_time = db.Column(db.Date, nullable=False)
+  artist = db.relationship(Artist, backref=db.backref("Shows", cascade="all, delete-orphan"))
+  venue = db.relationship(Venue, backref=db.backref("Shows", cascade="all, delete-orphan"))
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
@@ -89,28 +121,39 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  data=[{
-    "city": "San Francisco",
-    "state": "CA",
-    "venues": [{
-      "id": 1,
-      "name": "The Musical Hop",
-      "num_upcoming_shows": 0,
-    }, {
-      "id": 3,
-      "name": "Park Square Live Music & Coffee",
-      "num_upcoming_shows": 1,
-    }]
-  }, {
-    "city": "New York",
-    "state": "NY",
-    "venues": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }]
-  return render_template('pages/venues.html', areas=data);
+
+  # Query the Shows table to get the number of upcoming shows for each venue
+  shows_alias_table = select([Shows.venue_id.label("venue_id"), db.func.count(Shows.venue_id).label("num_upcoming_shows")]).where(Shows.start_time > db.func.now()).group_by(Shows.venue_id).alias()
+
+  # Combine both shows_alias_table and Venue table to retrieve venue data
+  data = db.session.query(Venue.id, Venue.city, Venue.state, Venue.name, shows_alias_table.c.num_upcoming_shows).outerjoin(shows_alias_table, shows_alias_table.c.venue_id==Venue.id).all()
+
+  venue_list = [] # Create an empty list to append the regrouped query result
+
+  # Regroup query result to:
+  # data=[{
+  #   "city":
+  #   "state":
+  #   "venues": [{
+  #     "id":
+  #     "name":
+  #     "num_upcoming_shows":]}
+  #     }]
+
+  for i, g in itertools.groupby(sorted(data, key=operator.itemgetter("city"), reverse=True), key=operator.itemgetter("city")):
+      sub_object = list(g)
+      venues = [{'id': obj['id'], 'name': obj['name'], 'num_upcoming_shows': obj['num_upcoming_shows']} for obj in sub_object]
+      adict = {
+          'city': i,
+          'state': sub_object[0]['state'],
+          'venues': venues
+      }
+      venue_list.append(adict)
+
+  print(venue_list)
+
+
+  return render_template('pages/venues.html', areas=venue_list)
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
@@ -134,7 +177,7 @@ def search_venues():
   return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
 
 @app.route('/venues/<int:venue_id>')
-def show_venue(venue_id):
+def show_venue( venue_id):
   # shows the venue page with the given venue_id
   # TODO: replace with real venue data from the venues table, using venue_id
   data1={
@@ -215,6 +258,7 @@ def show_venue(venue_id):
     "upcoming_shows_count": 1,
   }
   data = list(filter(lambda d: d['id'] == venue_id, [data1, data2, data3]))[0]
+  #data = Venue.query.get_all(id)
   return render_template('pages/show_venue.html', venue=data)
 
 #  Create Venue
