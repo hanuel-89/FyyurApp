@@ -8,7 +8,7 @@ from datetime import date
 import operator
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, flash, redirect, url_for
+from flask import Flask, abort, jsonify, render_template, request, flash, redirect, url_for
 
 import logging
 from logging import Formatter, FileHandler
@@ -49,14 +49,11 @@ def index():
 
 @app.route('/venues')
 def venues():
-    # TODO: replace with real venues data.
-    #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
 
-    # Query the appmod.appmod.Shows table to get the number of upcoming shows for each venue
     shows_alias_table = select([appmod.Shows.venue_id.label("venue_id"), db.func.count(appmod.Shows.venue_id).label(
         "num_upcoming_shows")]).where(appmod.Shows.start_time > db.func.now()).group_by(appmod.Shows.venue_id).alias()
 
-    # Combine both shows_alias_table and appmod.Venue table to retrieve venue data
+    # Combine both shows_alias_table and Venue table to retrieve venue data
     data = db.session.query(appmod.Venue.id, appmod.Venue.city, appmod.Venue.state, appmod.Venue.name, shows_alias_table.c.num_upcoming_shows).outerjoin(
         shows_alias_table, shows_alias_table.c.venue_id == appmod.Venue.id).all()
 
@@ -79,9 +76,8 @@ def venues():
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
     # TODO: implement search on venues with partial string search. Ensure it is case-insensitive.
-
-    search_term = request.form.get('search_term', '')
     try:
+      search_term = request.form.get('search_term', '')
       all_Venues = db.session.query(appmod.Venue.city, appmod.Venue.id, appmod.Venue.name).filter(
           appmod.Venue.name.ilike("%"+search_term+"%")).all()
 
@@ -100,7 +96,7 @@ def search_venues():
       return render_template('pages/search_venues.html', results=response[0], search_term=request.form.get('search_term', ''))
     except Exception as e:
       print(e)
-      flash("appmod.Venue " + str(search_term).upper() +
+      flash("Venue " + str(search_term).upper() +
             " not found.\nBelow is the list of all available venues.")
     return venues()
 
@@ -227,26 +223,33 @@ def create_venue_submission():
     return render_template('pages/home.html')
 
 
-@app.route('/venues/<venue_id>/delete', methods=['GET'])
+@app.route('/venues/<venue_id>/delete', methods=['GET', 'DELETE'])
 def delete_venue(venue_id):
-    # TODO: Complete this endpoint for taking a venue_id, and using
-    # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
+    error = False
     try:
         venue_id_to_delete = appmod.Venue.query.get(venue_id)
         db.session.delete(venue_id_to_delete)
         db.session.commit()
-        flash("Successfully deleted appmod.Venue with ID = " + venue_id)
-    except Exception as e:
-        print(e)
+        flash("Successfully deleted Venue with ID = " + venue_id)
+    except:
+        db.session.rollback()
+        error = True
+    finally:
+        db.session.close()
+    if error:
         flash('There was an error with your delete request')
-    return index()
+        return index()
+    else:
+        return index()
+
+    # except Exception as e:
+    #     print(e)
+    #     flash('There was an error with your delete request')
+    # return index()
 
 
-    # BONUS CHALLENGE: Implement a button to delete a appmod.Venue on a appmod.Venue Page, have it so that
-    # clicking that button delete it from the db then redirect the user to the homepage
 
-
-#  appmod.Artists
+#  Artists
 #  ----------------------------------------------------------------
 
 
@@ -387,8 +390,6 @@ def edit_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
-    # TODO: take values from the form submitted, and update existing
-    # artist record with ID <artist_id> using the new attributes
     edited_artist = db.session.query(appmod.Artist).get(artist_id)
 
     edited_artist.name = request.form['name']
@@ -411,19 +412,25 @@ def edit_artist_submission(artist_id):
     return redirect(url_for('show_artist', artist_id=artist_id))
 
 
-@app.route('/artist/<artist_id>/delete', methods=['GET'])
+@app.route('/artists/<artist_id>/delete', methods=['GET', 'DELETE'])
 def delete_artist(artist_id):
-    # TODO: Complete this endpoint for taking a venue_id, and using
-    # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
+
+    error = False
     try:
         artist_id_to_delete = appmod.Artist.query.get(artist_id)
         db.session.delete(artist_id_to_delete)
         db.session.commit()
-        flash("Successfully deleted appmod.Artist with ID = " + artist_id)
-    except Exception as e:
-        print(e)
+        flash("Successfully deleted Artist with ID = " + artist_id)
+    except:
+        db.session.rollback()
+        error = True
+    finally:
+        db.session.close()
+    if error:
         flash('There was an error with your delete request')
-    return index()
+        return index()
+    else:
+        return index()
 
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
@@ -532,8 +539,6 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
     # displays list of shows at /shows
-    # TODO: replace with real venues data.
-    # Query the appmod.Shows table to get the number of upcoming shows for each venue
     query = db.session.query(appmod.Shows.venue_id, appmod.Venue.name.label("venue_name"), appmod.Shows.artist_id, appmod.Artist.name.label("artist_name"), appmod.Artist.image_link.label(
         "artist_image_link"), appmod.Shows.start_time).join(appmod.Venue, appmod.Venue.id == appmod.Shows.venue_id).join(appmod.Artist, appmod.Artist.id == appmod.Shows.artist_id)
 
@@ -546,15 +551,14 @@ def shows():
 
 @app.route('/shows/create')
 def create_shows():
-    # renders form. do not touch.
+    # Render show forms
     form = ShowForm()
     return render_template('forms/new_show.html', form=form)
 
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-    # called to create new shows in the db, upon submitting new show listing form
-    # TODO: insert form data as a new Show record in the db, instead
+
     show = appmod.Shows(
         venue_id=request.form.get('venue_id'),
         artist_id=request.form.get('artist_id'),

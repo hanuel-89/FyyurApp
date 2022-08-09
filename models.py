@@ -24,8 +24,9 @@ class Venue(db.Model):
     seeking_description = db.Column(db.String(500))
     artists = db.relationship('Shows', back_populates='venue')
 
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
+    def __repr__(self):
+        return f'<Artist ID: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, address: {self.address}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, facebook_link: {self.facebook_link}, website: {self.website}, seeking_talent: {self.seeking_talent}, seeking_description: {self.seeking_description}>'
 
 class Artist(db.Model):
     __tablename__ = 'Artist'
@@ -43,6 +44,9 @@ class Artist(db.Model):
     seeking_description = db.Column(db.String(500))
     venues = db.relationship('Shows', back_populates='artist')
 
+    def __repr__(self):
+        return f'<Artist ID: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, facebook_link: {self.facebook_link}, website: {self.website}, seeking_venue: {self.seeking_venue}, seeking_description: {self.seeking_description}>'
+
 
 class Shows(db.Model):
     __tablename__ = 'Shows'
@@ -53,3 +57,7 @@ class Shows(db.Model):
     start_time = db.Column(db.Date, nullable=False)
     artist = db.relationship('Artist', back_populates='venues')
     venue = db.relationship('Venue', back_populates='artists')
+
+
+    def __repr__(self):
+        return f'<Artist ID: {self.id}, show_venue_id: {self.venue_id}, show_artist_id: {self.artist_id}, start_time: {self.start_time}>'
