@@ -2,16 +2,20 @@
 {% block title %}Fyyur | Shows{% endblock %}
 {% block content %}
 <div class="row shows">
-    {%for show in shows %}
-    <div class="col-sm-4">
-        <div class="tile tile-show">
-            <img src="{{ show.artist_image_link }}" alt="Artist Image" />
-            <h4>{{ show.start_time.strftime('%m/%d/%Y')|datetime('full') }}</h4>
-            <h5><a href="/artists/{{ show.artist_id }}">{{ show.artist_name }}</a></h5>
-            <p>playing at</p>
-            <h5><a href="/venues/{{ show.venue_id }}">{{ show.venue_name }}</a></h5>
+    {% if shows|length > 0 %}
+        {%for show in shows %}
+        <div class="col-sm-4">
+            <div class="tile tile-show">
+                <img src="{{ show.artist_image_link }}" alt="Artist Image" />
+                <h4>{{ show.start_time.strftime('%m/%d/%Y')|datetime('full') }}</h4>
+                <h5><a href="/artists/{{ show.artist_id }}">{{ show.artist_name }}</a></h5>
+                <p>playing at</p>
+                <h5><a href="/venues/{{ show.venue_id }}">{{ show.venue_name }}</a></h5>
+            </div>
         </div>
-    </div>
-    {% endfor %}
+        {% endfor %}
+    {% else %}
+    <h6>THERE ARE NO SHOWS LISTED YET.</h6>
+    {% endif %}
 </div>
 {% endblock %}

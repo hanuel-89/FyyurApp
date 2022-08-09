@@ -3,12 +3,10 @@
 #----------------------------------------------------------------------------#
 
 from email.utils import format_datetime
-import itertools
 from datetime import date
-import operator
 import dateutil.parser
 import babel
-from flask import Flask, abort, jsonify, render_template, request, flash, redirect, url_for
+from flask import render_template, request, flash, redirect, url_for
 
 import logging
 from logging import Formatter, FileHandler
@@ -16,12 +14,14 @@ from sqlalchemy import select
 from forms import *
 
 import models as appmod
+import helper_functions as controller_funcs
 
 from settings import app, db
 
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
+
 
 def format_datetime(value, format='medium'):
     date = dateutil.parser.parse(value)
@@ -45,31 +45,11 @@ def index():
 
 
 #  Venues
-#  ----------------------------------------------------------------
+#----------------------------------------------------------------------------#
 
 @app.route('/venues')
 def venues():
-
-    shows_alias_table = select([appmod.Shows.venue_id.label("venue_id"), db.func.count(appmod.Shows.venue_id).label(
-        "num_upcoming_shows")]).where(appmod.Shows.start_time > db.func.now()).group_by(appmod.Shows.venue_id).alias()
-
-    # Combine both shows_alias_table and Venue table to retrieve venue data
-    data = db.session.query(appmod.Venue.id, appmod.Venue.city, appmod.Venue.state, appmod.Venue.name, shows_alias_table.c.num_upcoming_shows).outerjoin(
-        shows_alias_table, shows_alias_table.c.venue_id == appmod.Venue.id).all()
-
-    venue_list = []  # Create an empty list to append the regrouped query result
-
-    for i, g in itertools.groupby(sorted(data, key=operator.itemgetter("city"), reverse=True), key=operator.itemgetter("city")):
-        sub_object = list(g)
-        venues = [{'id': obj['id'], 'name': obj['name'],
-                   'num_upcoming_shows': obj['num_upcoming_shows']} for obj in sub_object]
-        adict = {
-            'city': i,
-            'state': sub_object[0]['state'],
-            'venues': venues
-        }
-        venue_list.append(adict)
-
+    venue_list = controller_funcs.get_venues_by_city_and_state(db=db, app_model=appmod)
     return render_template('pages/venues.html', areas=venue_list)
 
 
@@ -77,95 +57,26 @@ def venues():
 def search_venues():
     # TODO: implement search on venues with partial string search. Ensure it is case-insensitive.
     try:
-      search_term = request.form.get('search_term', '')
-      all_Venues = db.session.query(appmod.Venue.city, appmod.Venue.id, appmod.Venue.name).filter(
-          appmod.Venue.name.ilike("%"+search_term+"%")).all()
-
-      response = []
-      for _, g in itertools.groupby(sorted(all_Venues, key=operator.itemgetter("city"), reverse=True), key=operator.itemgetter("city")):
-            count = len(all_Venues)
-            sub_object = list(g)
-            data = [{'id': obj['id'], 'name': obj['name']}
-                for obj in sub_object]
-            adict = {
-                'count': count,
-                'data': data
-            }
-            response.append(adict)
-
-      return render_template('pages/search_venues.html', results=response[0], search_term=request.form.get('search_term', ''))
+        search_term = request.form.get('search_term', '')
+        response = controller_funcs.search_venue(db=db, app_model=appmod, search_term=search_term)
+        return render_template('pages/search_venues.html', results=response[0], search_term=search_term)
     except Exception as e:
-      print(e)
-      flash("Venue " + str(search_term).upper() +
-            " not found.\nBelow is the list of all available venues.")
+        print(e)
+        flash("Venue " + str(search_term).upper() +
+              " not found.\nBelow is the list of all available venues.")
     return venues()
 
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
 
-    alias_query = db.session.query(appmod.Venue).cte()
-    data_query_result = db.session.query(alias_query, appmod.Shows.artist_id, appmod.Artist.name.label("artist_name"), appmod.Artist.image_link.label(
-        "artist_image_link"), appmod.Shows.start_time).join(alias_query, alias_query.c.id == appmod.Shows.venue_id, full=True).join(appmod.Artist, appmod.Artist.id == appmod.Shows.artist_id, full=True)
-
-    data_list = []
-    for data in data_query_result:
-        data_list.append(data._asdict())
-
-    data_list[:] = [delete_none_id for delete_none_id in data_list if delete_none_id.get(
-        'id') != None]  # Delete ID's that are None based on the result of a full join query
-
-    regrouped_data_list = []
-    today = date.today()
-
-    for _, g in itertools.groupby(
-            sorted(data_list, key=operator.itemgetter("id"), reverse=False),
-            key=operator.itemgetter("id")
-    ):
-
-        sub_object = list(g)
-
-        upcoming_shows = []
-        past_shows = []
-        past_shows_count = 0
-        upcoming_shows_count = 0
-        for obj in sub_object:
-            _, start_time = obj['id'], obj['start_time']
-            if start_time is None:
-                upcoming_shows = []
-                past_shows = []
-
-            elif start_time < today:
-                past_shows.append(
-                    {'artist_id': obj['artist_id'], 'artist_name': obj['artist_name'],
-                     'artist_image_link': obj['artist_image_link'],
-                     'start_time': start_time.strftime('%m/%d/%Y')}
-                )
-                past_shows_count += 1
-
-            else:
-                upcoming_shows.append(
-                    {'artist_id': obj['artist_id'], 'artist_name': obj['artist_name'],
-                     'artist_image_link': obj['artist_image_link'],
-                     'start_time': start_time.strftime('%m/%d/%Y')}
-                )
-                upcoming_shows_count += 1
-
-        adict = {
-            **sub_object[0],
-            'past_shows': past_shows,
-            'upcoming_shows': upcoming_shows,
-            'past_shows_count': past_shows_count,
-            'upcoming_shows_count': upcoming_shows_count
-        }
-        regrouped_data_list.append(adict)
-
+    regrouped_data_list = controller_funcs.show_venue_OR_artist_details(db=db, app_model=appmod, for_venue_id=True)
 
     venue_data = list(
         filter(lambda d: d['id'] == venue_id, regrouped_data_list))[0]
     return render_template('pages/show_venue.html', venue=venue_data)
 
-#  Create appmod.Venue
+#  Create Venue
 #  ----------------------------------------------------------------
 
 
@@ -177,7 +88,6 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-    # TODO: insert form data as a new appmod.Venue record in the db, instead
     name = request.form.get('name')
     city = request.form.get('city')
     state = request.form.get('state')
@@ -191,9 +101,9 @@ def create_venue_submission():
     seeking_description = request.form.get('seeking_description')
 
     if seeking_talent == 'y':
-      seeking_talent = True
+        seeking_talent = True
     else:
-      seeking_talent = False
+        seeking_talent = False
     form_venue_input = appmod.Venue(
         name=name,
         city=city,
@@ -207,17 +117,12 @@ def create_venue_submission():
         seeking_talent=seeking_talent,
         seeking_description=seeking_description
     )
-
-    # TODO: modify data to be the data object returned from db insertion
-
-    # on successful db insert, flash success
     try:
         db.session.add(form_venue_input)
         db.session.commit()
-        flash('appmod.Venue ' + request.form['name'] + ' was successfully listed!')
+        flash(request.form['name'] + ' was successfully listed!')
     except Exception as e:
-        flash('An error occured. appmod.Venue' +
-              request.form['name'] + 'could not be listed')
+        flash('An error occured. ' + request.form['name'] + 'could not be listed')
         print(e)
 
     return render_template('pages/home.html')
@@ -241,16 +146,8 @@ def delete_venue(venue_id):
         return index()
     else:
         return index()
-
-    # except Exception as e:
-    #     print(e)
-    #     flash('There was an error with your delete request')
-    # return index()
-
-
-
 #  Artists
-#  ----------------------------------------------------------------
+#----------------------------------------------------------------
 
 
 @app.route('/artists')
@@ -266,102 +163,25 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-    # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-    # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-    # search for "band" should return "The Wild Sax Band".
-
-    search_term = request.form.get('search_term', '')
     try:
-      artist_search = db.session.query(appmod.Artist.id, appmod.Artist.name).filter(
-          appmod.Artist.name.ilike("%"+search_term+"%"))
-
-      search_list = []
-      for artist in artist_search:
-          search_list.append(artist._asdict)
-
-
-      response = []
-      for _, g in itertools.groupby(sorted(artist_search, key=operator.itemgetter("id"), reverse=True)):
-          count = len(search_list)
-          sub_object = list(g)
-          data = [{'id': obj['id'], 'name': obj['name']} for obj in sub_object]
-          artist_search_dict = {
-              **sub_object[0],
-              'count': count,
-              'data': data
-          }
-          response.append(artist_search_dict)
-      return render_template('pages/search_artists.html', results=response[0], search_term=request.form.get('search_term', ''))
+      search_term = request.form.get('search_term', '')
+      response = controller_funcs.search_artist(db=db, app_model=appmod, search_term=search_term)
+      return render_template('pages/search_artists.html', results=response[0], search_term=search_term)
     except Exception as e:
-      print(e)
-      flash("appmod.Artist " + str(search_term).upper() + " not found.\nBelow is the list of all available artists.")
+        print(e)
+        flash("Artist " + str(search_term).upper() +
+              " not found.\nBelow is the list of all available artists.")
     return artists()
 
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
     # shows the artist page with the given artist_id
-    # TODO: replace with real artist data from the artist table, using artist_id
+    regrouped_data_list = controller_funcs.show_venue_OR_artist_details(db=db, app_model=appmod, for_artist_id=True)
 
-    artist_cte = db.session.query(appmod.Artist).cte()
-    artist_query_result = db.session.query(artist_cte, appmod.Shows.venue_id, appmod.Venue.name.label("venue_name"),
-                                           appmod.Venue.image_link.label("venue_image_link"), appmod.Shows.start_time).join(artist_cte, artist_cte.c.id == appmod.Shows.artist_id, full=True).join(appmod.Venue, appmod.Venue.id == appmod.Shows.venue_id, full=True)
-
-    artist_data_list = []
-    for data in artist_query_result:
-        artist_data_list.append(data._asdict())
-
-    artist_data_list[:] = [delete_none_id for delete_none_id in artist_data_list if delete_none_id.get('id') != None] # Delete ID's that are None based on the result of a full join query
-
-    artist_regrouped_data_list = []
-    today = date.today()
-
-    for _, g in itertools.groupby(
-            sorted(artist_data_list, key=operator.itemgetter(
-                "id"), reverse=False),
-            key=operator.itemgetter("id")
-    ):
-
-        sub_object = list(g)
-
-        upcoming_shows = []
-        past_shows = []
-        past_shows_count = 0
-        upcoming_shows_count = 0
-        for obj in sub_object:
-            _, start_time = obj['id'], obj['start_time']
-
-            if start_time is None:
-                upcoming_shows = []
-                past_shows = []
-
-            elif start_time < today:
-                past_shows.append(
-                    {'venue_id': obj['venue_id'], 'venue_name': obj['venue_name'],
-                     'venue_image_link': obj['venue_image_link'],
-                     'start_time': start_time.strftime('%m/%d/%Y')}
-                )
-                past_shows_count += 1
-
-            else:
-                upcoming_shows.append(
-                    {'venue_id': obj['venue_id'], 'venue_name': obj['venue_name'],
-                     'venue_image_link': obj['venue_image_link'],
-                     'start_time': start_time.strftime('%m/%d/%Y')}
-                )
-                upcoming_shows_count += 1
-
-        adict = {
-            **sub_object[0],
-            'past_shows': past_shows,
-            'upcoming_shows': upcoming_shows,
-            'past_shows_count': past_shows_count,
-            'upcoming_shows_count': upcoming_shows_count
-        }
-        artist_regrouped_data_list.append(adict)
 
     artist_data = list(filter(lambda d: d['id'] ==
-                              artist_id, artist_regrouped_data_list))[0]
+                              artist_id, regrouped_data_list))[0]
     return render_template('pages/show_artist.html', artist=artist_data)
 
 #  Update
@@ -502,11 +322,10 @@ def create_artist_submission():
     seeking_venue = request.form.get('seeking_venue')
     seeking_description = request.form.get('seeking_description')
 
-
     if seeking_venue == 'y':
-        seeking_venue=True
+        seeking_venue = True
     else:
-        seeking_venue=False
+        seeking_venue = False
 
     form_artist_input = appmod.Artist(
         name=name,
@@ -522,9 +341,10 @@ def create_artist_submission():
     )
 
     try:
-      db.session.add(form_artist_input)
-      db.session.commit()
-      flash('appmod.Artist ' + request.form['name'] + ' was successfully listed!')
+        db.session.add(form_artist_input)
+        db.session.commit()
+        flash('appmod.Artist ' +
+              request.form['name'] + ' was successfully listed!')
     except Exception as e:
         flash('An error occured. appmod.Artist ' +
               request.form['name'] + 'could not be listed')
@@ -539,12 +359,9 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
     # displays list of shows at /shows
-    query = db.session.query(appmod.Shows.venue_id, appmod.Venue.name.label("venue_name"), appmod.Shows.artist_id, appmod.Artist.name.label("artist_name"), appmod.Artist.image_link.label(
-        "artist_image_link"), appmod.Shows.start_time).join(appmod.Venue, appmod.Venue.id == appmod.Shows.venue_id).join(appmod.Artist, appmod.Artist.id == appmod.Shows.artist_id)
+    data = controller_funcs.get_shows(db=db, app_model=appmod)
 
-    data = []
-    for show in query:
-        data.append(show._asdict())
+    print(len(data))
 
     return render_template('pages/shows.html', shows=data)
 
@@ -570,7 +387,7 @@ def create_show_submission():
         db.session.commit()
         flash('Show was successfully created')
     except Exception as e:
-        flash('An error occured. "SHOW appmod.Venue" could not be listed\n\n Ensure that both "appmod.Artist" and "appmod.Venue" IDs are registered')
+        flash('An error occured. "SHOW" could not be listed. Ensure that both "Artist" and "Venue" IDs are registered')
 
     return render_template('pages/home.html')
 
