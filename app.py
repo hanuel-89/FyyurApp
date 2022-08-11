@@ -4,6 +4,8 @@
 
 from email.utils import format_datetime
 from datetime import date
+import itertools
+import operator
 import dateutil.parser
 import babel
 from flask import render_template, request, flash, redirect, url_for
@@ -49,7 +51,9 @@ def index():
 
 @app.route('/venues')
 def venues():
-    venue_list = controller_funcs.get_venues_by_city_and_state(db=db, app_model=appmod)
+    """Venue controller. It shows the list of registered venues"""
+    venue_list = controller_funcs.get_venues_by_city_and_state(
+        db=db, app_model=appmod)
     return render_template('pages/venues.html', areas=venue_list)
 
 
@@ -58,7 +62,8 @@ def search_venues():
     # TODO: implement search on venues with partial string search. Ensure it is case-insensitive.
     try:
         search_term = request.form.get('search_term', '')
-        response = controller_funcs.search_venue(db=db, app_model=appmod, search_term=search_term)
+        response = controller_funcs.search_venue(
+            db=db, app_model=appmod, search_term=search_term)
         return render_template('pages/search_venues.html', results=response[0], search_term=search_term)
     except Exception as e:
         print(e)
@@ -69,17 +74,17 @@ def search_venues():
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
-
-    regrouped_data_list = controller_funcs.show_venue_OR_artist_details(db=db, app_model=appmod, for_venue_id=True)
+    # Get the details of the venue and regroup the dictionary
+    regrouped_data_list = controller_funcs.show_venue_OR_artist_details(
+        db=db, app_model=appmod, for_venue_id=True)
 
     venue_data = list(
         filter(lambda d: d['id'] == venue_id, regrouped_data_list))[0]
     return render_template('pages/show_venue.html', venue=venue_data)
 
+
 #  Create Venue
 #  ----------------------------------------------------------------
-
-
 @app.route('/venues/create', methods=['GET'])
 def create_venue_form():
     form = VenueForm()
@@ -88,6 +93,8 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
+    # Get the venue field from the forms
+
     name = request.form.get('name')
     city = request.form.get('city')
     state = request.form.get('state')
@@ -100,30 +107,35 @@ def create_venue_submission():
     seeking_talent = request.form.get('seeking_talent')
     seeking_description = request.form.get('seeking_description')
 
+    # Convert form response into boolean field acceptable by the db
     if seeking_talent == 'y':
         seeking_talent = True
     else:
         seeking_talent = False
-    form_venue_input = appmod.Venue(
-        name=name,
-        city=city,
-        state=state,
-        address=address,
-        phone=phone,
-        genres=genres,
-        facebook_link=facebook_link,
-        image_link=image_link,
-        website=website,
-        seeking_talent=seeking_talent,
-        seeking_description=seeking_description
-    )
-    try:
-        db.session.add(form_venue_input)
-        db.session.commit()
-        flash(request.form['name'] + ' was successfully listed!')
-    except Exception as e:
-        flash('An error occured. ' + request.form['name'] + 'could not be listed')
-        print(e)
+
+    form = VenueForm(request.form)
+    if request.method == 'POST' and form.validate():
+        form_venue_input = appmod.Venue(
+            name=name,
+            city=city,
+            state=state,
+            address=address,
+            phone=phone,
+            genres=genres,
+            facebook_link=facebook_link,
+            image_link=image_link,
+            website=website,
+            seeking_talent=seeking_talent,
+            seeking_description=seeking_description
+        )
+        try:
+            db.session.add(form_venue_input)
+            db.session.commit()
+            flash(request.form['name'] + ' was successfully listed!')
+        except Exception as e:
+            flash('An error occured. ' +
+                request.form['name'] + 'could not be listed')
+            print(e)
 
     return render_template('pages/home.html')
 
@@ -147,12 +159,12 @@ def delete_venue(venue_id):
     else:
         return index()
 #  Artists
-#----------------------------------------------------------------
+# ----------------------------------------------------------------
 
 
 @app.route('/artists')
 def artists():
-    # TODO: replace with real data returned from querying the database
+
     artist_query = db.session.query(appmod.Artist.id, appmod.Artist.name)
     artist_list = []
     for row in artist_query:
@@ -164,9 +176,10 @@ def artists():
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
     try:
-      search_term = request.form.get('search_term', '')
-      response = controller_funcs.search_artist(db=db, app_model=appmod, search_term=search_term)
-      return render_template('pages/search_artists.html', results=response[0], search_term=search_term)
+        search_term = request.form.get('search_term', '')
+        response = controller_funcs.search_artist(
+            db=db, app_model=appmod, search_term=search_term)
+        return render_template('pages/search_artists.html', results=response[0], search_term=search_term)
     except Exception as e:
         print(e)
         flash("Artist " + str(search_term).upper() +
@@ -177,8 +190,8 @@ def search_artists():
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
     # shows the artist page with the given artist_id
-    regrouped_data_list = controller_funcs.show_venue_OR_artist_details(db=db, app_model=appmod, for_artist_id=True)
-
+    regrouped_data_list = controller_funcs.show_venue_OR_artist_details(
+        db=db, app_model=appmod, for_artist_id=True)
 
     artist_data = list(filter(lambda d: d['id'] ==
                               artist_id, regrouped_data_list))[0]
@@ -327,33 +340,36 @@ def create_artist_submission():
     else:
         seeking_venue = False
 
-    form_artist_input = appmod.Artist(
-        name=name,
-        city=city,
-        state=state,
-        phone=phone,
-        genres=genres,
-        facebook_link=facebook_link,
-        image_link=image_link,
-        website=website,
-        seeking_venue=seeking_venue,
-        seeking_description=seeking_description
-    )
+    form = ArtistForm(request.form)
+    print(form.validate())
+    if request.method == 'POST' and form.validate():
+        form_artist_input = appmod.Artist(
+            name=name,
+            city=city,
+            state=state,
+            phone=phone,
+            genres=genres,
+            facebook_link=facebook_link,
+            image_link=image_link,
+            website=website,
+            seeking_venue=seeking_venue,
+            seeking_description=seeking_description
+        )
 
-    try:
-        db.session.add(form_artist_input)
-        db.session.commit()
-        flash('appmod.Artist ' +
-              request.form['name'] + ' was successfully listed!')
-    except Exception as e:
-        flash('An error occured. appmod.Artist ' +
-              request.form['name'] + 'could not be listed')
-        print(e)
+        try:
+            db.session.add(form_artist_input)
+            db.session.commit()
+            flash('Artist: ' +
+                request.form['name'] + ' was successfully listed!')
+        except Exception as e:
+            flash('An error occured. Artist: ' +
+                request.form['name'] + 'could not be listed')
+            print(e)
 
     return render_template('pages/home.html')
 
 
-#  Shows
+#  Show
 #  ----------------------------------------------------------------
 
 @app.route('/shows')
@@ -376,7 +392,7 @@ def create_shows():
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
 
-    show = appmod.Shows(
+    show = appmod.Show(
         venue_id=request.form.get('venue_id'),
         artist_id=request.form.get('artist_id'),
         start_time=request.form.get('start_time')

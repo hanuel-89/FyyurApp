@@ -1,8 +1,8 @@
 from datetime import date
-from flask import flash
-from sqlalchemy import select
 import itertools
 import operator
+
+from sqlalchemy import select
 
 
 def get_venues_by_city_and_state(db, app_model):
@@ -18,8 +18,8 @@ def get_venues_by_city_and_state(db, app_model):
         -------
             venue_list (dict): A list of all venues grouped by city and state.
     """
-    shows_table_query = select([app_model.Shows.venue_id.label("venue_id"), db.func.count(app_model.Shows.venue_id).label(
-        "num_upcoming_shows")]).where(app_model.Shows.start_time > db.func.now()).group_by(app_model.Shows.venue_id).alias()
+    shows_table_query = select([app_model.Show.venue_id.label("venue_id"), db.func.count(app_model.Show.venue_id).label(
+        "num_upcoming_shows")]).where(app_model.Show.start_time > db.func.now()).group_by(app_model.Show.venue_id).alias()
 
     # Combine both shows_table_query and venue table to retrieve venue data
     query_result = db.session.query(app_model.Venue.id, app_model.Venue.city, app_model.Venue.state, app_model.Venue.name, shows_table_query.c.num_upcoming_shows).outerjoin(
@@ -27,7 +27,7 @@ def get_venues_by_city_and_state(db, app_model):
 
     venue_list = []  # Create an empty list to append the regrouped query result
 
-    for i, g in itertools.groupby(sorted(query_result, key=operator.itemgetter("city"), reverse=True), key=operator.itemgetter("city")):
+    for i, g in itertools.groupby(query_result, key=operator.itemgetter("city")):
         sub_object = list(g)
         venues = [{'id': obj['id'], 'name': obj['name'],
                    'num_upcoming_shows': obj['num_upcoming_shows']} for obj in sub_object]
@@ -59,7 +59,7 @@ def search_venue(db, app_model, search_term):
 
     search_result = []
 
-    for _, g in itertools.groupby(sorted(all_Venues, key=operator.itemgetter("city"), reverse=True), key=operator.itemgetter("city")):
+    for _, g in itertools.groupby(all_Venues, key=operator.itemgetter("city")):
         count = len(all_Venues)
         sub_object = list(g)
         data = [{'id': obj['id'], 'name': obj['name']}
@@ -147,30 +147,35 @@ def show_venue_OR_artist_details(db, app_model, for_venue_id=False, for_artist_i
            regrouped_data_list (dict):  A dic
    """
     if for_venue_id:
-        show_1_id = app_model.Shows.artist_id
-        show_2_id = app_model.Shows.venue_id
-        table_name_smallcase = 'artist'
-        cte_tableName = app_model.Venue
-        tableName = app_model.Artist
+            query = db.session.query(
+            app_model.Venue.id, app_model.Venue.name, app_model.Venue.city, app_model.Venue.state, app_model.Venue.address, app_model.Venue.phone, app_model.Venue.genres, app_model.Venue.image_link,
+            app_model.Venue.facebook_link, app_model.Venue.website, app_model.Venue.seeking_talent, app_model.Venue.seeking_description,
+            app_model.Show.artist_id,
+            app_model.Artist.name.label("artist_name"),
+            app_model.Artist.image_link.label("artist_image_link"),
+            app_model.Show.start_time)
+
+            query_result = query.outerjoin(app_model.Venue, full=True).outerjoin(app_model.Artist, full=True)
+
+            table_id = 'artist_id'
+            table_name = 'artist_name'
+            table_image_link = 'artist_image_link'
 
     if for_artist_id:
-        show_1_id = app_model.Shows.venue_id
-        show_2_id = app_model.Shows.artist_id
-        table_name_smallcase = 'venue'
-        cte_tableName = app_model.Artist
-        tableName = app_model.Venue
+            query = db.session.query(
+            app_model.Artist.id, app_model.Artist.name, app_model.Artist.city, app_model.Artist.state, app_model.Artist.phone, app_model.Artist.genres, app_model.Artist.image_link,
+            app_model.Artist.facebook_link, app_model.Artist.website, app_model.Artist.seeking_venue, app_model.Artist.seeking_description,
+            app_model.Show.venue_id,
+            app_model.Venue.name.label("venue_name"),
+            app_model.Venue.image_link.label("venue_image_link"),
+            app_model.Show.start_time)
 
-    table_id = 'table_id'.replace('table', table_name_smallcase)
-    table_name = 'table_name'.replace('table', table_name_smallcase)
-    table_image_link = 'table_image_link'.replace(
-        'table', table_name_smallcase)
+            query_result = query.outerjoin(app_model.Artist, full=True).outerjoin(app_model.Venue, full=True)
 
-    table_cte = db.session.query(cte_tableName).cte()
+            table_id = 'venue_id'
+            table_name = 'venue_name'
+            table_image_link = 'venue_image_link'
 
-    query_result = db.session.query(
-        table_cte, show_1_id,
-        tableName.name.label(table_name),
-        tableName.image_link.label(table_image_link), app_model.Shows.start_time).join(table_cte, table_cte.c.id == show_2_id, full=True).join(tableName, tableName.id == show_1_id, full=True)
 
     data_list = []
     for data in query_result:
@@ -240,13 +245,13 @@ def get_shows(db, app_model):
             venue_list (dict): A list of all venues grouped by city and state.
     """
     query = db.session.query(
-        app_model.Shows.venue_id,
+        app_model.Show.venue_id,
         app_model.Venue.name.label("venue_name"),
-        app_model.Shows.artist_id,
+        app_model.Show.artist_id,
         app_model.Artist.name.label("artist_name"),
         app_model.Artist.image_link.label(
             "artist_image_link"),
-        app_model.Shows.start_time).join(app_model.Venue, app_model.Venue.id == app_model.Shows.venue_id).join(app_model.Artist, app_model.Artist.id == app_model.Shows.artist_id)
+        app_model.Show.start_time).join(app_model.Venue, app_model.Venue.id == app_model.Show.venue_id).join(app_model.Artist, app_model.Artist.id == app_model.Show.artist_id)
 
     data = []
     for show in query:

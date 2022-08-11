@@ -2,13 +2,13 @@
 This module contains the database model for the Fyyur application.
     Venue model: This table contains information about the possible venues to host a musical show
     Artist model: This tables contains information about available artists that would love to hold a show
-    Shows model: This is a relationship table that holds information about which artist is utilizing a venue
+    Show model: This is a relationship table that holds information about which artist is utilizing a venue
 """
 
 from settings import db
 
 class Venue(db.Model):
-    __tablename__ = 'Venue'
+    __tablename__ = 'venues'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -22,14 +22,14 @@ class Venue(db.Model):
     website = db.Column(db.String(500))
     seeking_talent = db.Column(db.Boolean, default=True)
     seeking_description = db.Column(db.String(500))
-    artists = db.relationship('Shows', back_populates='venue')
+    artists = db.relationship('Show', back_populates='venues')
 
 
     def __repr__(self):
-        return f'<Artist ID: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, address: {self.address}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, facebook_link: {self.facebook_link}, website: {self.website}, seeking_talent: {self.seeking_talent}, seeking_description: {self.seeking_description}>'
+        return f'id: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, address: {self.address}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, facebook_link: {self.facebook_link}, website: {self.website}, seeking_talent: {self.seeking_talent}, seeking_description: {self.seeking_description}'
 
 class Artist(db.Model):
-    __tablename__ = 'Artist'
+    __tablename__ = 'artists'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
@@ -42,21 +42,21 @@ class Artist(db.Model):
     website = db.Column(db.String(500))
     seeking_venue = db.Column(db.Boolean, default=True)
     seeking_description = db.Column(db.String(500))
-    venues = db.relationship('Shows', back_populates='artist')
+    venues = db.relationship('Show', back_populates='artists')
 
     def __repr__(self):
-        return f'<Artist ID: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, facebook_link: {self.facebook_link}, website: {self.website}, seeking_venue: {self.seeking_venue}, seeking_description: {self.seeking_description}>'
+        return f'id: {self.id}, name: {self.name}, city: {self.city}, state: {self.state}, phone: {self.phone}, genres: {self.genres}, image_link: {self.image_link}, facebook_link: {self.facebook_link}, website: {self.website}, seeking_venue: {self.seeking_venue}, seeking_description: {self.seeking_description}'
 
 
-class Shows(db.Model):
-    __tablename__ = 'Shows'
+class Show(db.Model):
+    __tablename__ = 'shows'
 
     id = db.Column(db.Integer, primary_key=True)
-    venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'))
-    artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'))
+    venue_id = db.Column(db.Integer, db.ForeignKey('venues.id'))
+    artist_id = db.Column(db.Integer, db.ForeignKey('artists.id'))
     start_time = db.Column(db.Date, nullable=False)
-    artist = db.relationship('Artist', back_populates='venues')
-    venue = db.relationship('Venue', back_populates='artists')
+    artists = db.relationship('Artist', back_populates='venues')
+    venues = db.relationship('Venue', back_populates='artists')
 
 
     def __repr__(self):
