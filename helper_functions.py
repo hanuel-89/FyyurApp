@@ -18,13 +18,6 @@ def get_venues_by_city_and_state(db, app_model):
         -------
             venue_list (dict): A list of all venues grouped by city and state.
     """
-    # shows_table_query = select([app_model.Show.venue_id.label("venue_id"), db.func.count(app_model.Show.venue_id).label(
-    #     "num_upcoming_shows")]).where(app_model.Show.start_time > db.func.now()).group_by(app_model.Show.venue_id).alias()
-
-    # # Combine both shows_table_query and venue table to retrieve venue data
-    # query_result = db.session.query(app_model.Venue.id, app_model.Venue.city, app_model.Venue.state, app_model.Venue.name, shows_table_query.c.num_upcoming_shows).outerjoin(
-    #     shows_table_query, shows_table_query.c.venue_id == app_model.Venue.id)
-
     query_result = db.session.query(app_model.Venue.city, app_model.Venue.state, app_model.Venue.id, app_model.Venue.name)
 
     venue_list = []  # Create an empty list to append the regrouped query result
@@ -230,7 +223,6 @@ def show_venue_OR_artist_details(db, app_model, for_venue_id=False, for_artist_i
             'upcoming_shows_count': upcoming_shows_count
         }
         regrouped_data_list.append(adict)
-    print(regrouped_data_list)
     return regrouped_data_list
 
 

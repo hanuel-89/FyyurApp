@@ -372,9 +372,6 @@ def create_artist_submission():
 def shows():
     # displays list of shows at /shows
     data = controller_funcs.get_shows(db=db, app_model=appmod)
-
-    print(len(data))
-
     return render_template('pages/shows.html', shows=data)
 
 
