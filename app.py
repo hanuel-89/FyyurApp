@@ -115,28 +115,28 @@ def create_venue_submission():
 
     form = VenueForm(request.form)
     if request.method == 'POST' and form.validate():
-        form_venue_input = appmod.Venue(
-            name=name,
-            city=city,
-            state=state,
-            address=address,
-            phone=phone,
-            genres=genres,
-            facebook_link=facebook_link,
-            image_link=image_link,
-            website=website,
-            seeking_talent=seeking_talent,
-            seeking_description=seeking_description
-        )
-        try:
-            db.session.add(form_venue_input)
-            db.session.commit()
-            flash(request.form['name'] + ' was successfully listed!')
-        except Exception as e:
-            flash('An error occured. ' +
-                request.form['name'] + 'could not be listed')
-            print(e)
-
+        venue_form_input = appmod.Venue(
+                name=name,
+                city=city,
+                state=state,
+                address=address,
+                phone=phone,
+                genres=genres,
+                facebook_link=facebook_link,
+                image_link=image_link,
+                website=website,
+                seeking_talent=seeking_talent,
+                seeking_description=seeking_description
+            )
+    else:
+        flash('An error occured. Venue: ' + request.form['name'] + ' could not be listed. Please make sure you fill all the required fields.')
+        return render_template('forms/new_venue.html', form=form)
+    try:
+        db.session.add(venue_form_input)
+        db.session.commit()
+        flash('Venue: ' + request.form['name'] + ' was successfully listed!')
+    except Exception as e:
+        flash('An error occured. Venue: ' + request.form['name'] + ' could not be listed')
     return render_template('pages/home.html')
 
 
@@ -203,7 +203,7 @@ def show_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
-    form = appmod.ArtistForm()
+    form = ArtistForm()
     artist = db.session.query(appmod.Artist).filter_by(id=artist_id).first()
 
     # TODO: populate form with fields from artist with ID <artist_id>
@@ -232,7 +232,7 @@ def edit_artist_submission(artist_id):
     edited_artist.genres = request.form.getlist('genres')
     edited_artist.facebook_link = request.form['facebook_link']
     edited_artist.image_link = request.form['image_link']
-    if request.form['seeking_venue'] == 'y':
+    if request.form.get('seeking_venue') == 'y':
         edited_artist.seeking_venue = True
     else:
         edited_artist.seeking_venue = False
@@ -268,7 +268,7 @@ def delete_artist(artist_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
-    form = appmod.VenueForm()
+    form = VenueForm()
     venue = db.session.query(appmod.Venue).filter_by(id=venue_id).one()
 
     form.name.data = venue.name
@@ -322,8 +322,7 @@ def create_artist_form():
 
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
-    # called upon submitting the new artist listing form
-    # TODO: insert form data as a new appmod.Venue record in the db, instead
+
     name = request.form.get('name')
     city = request.form.get('city')
     state = request.form.get('state')
@@ -341,31 +340,28 @@ def create_artist_submission():
         seeking_venue = False
 
     form = ArtistForm(request.form)
-    print(form.validate())
     if request.method == 'POST' and form.validate():
         form_artist_input = appmod.Artist(
-            name=name,
-            city=city,
-            state=state,
-            phone=phone,
-            genres=genres,
-            facebook_link=facebook_link,
-            image_link=image_link,
-            website=website,
-            seeking_venue=seeking_venue,
-            seeking_description=seeking_description
-        )
-
-        try:
-            db.session.add(form_artist_input)
-            db.session.commit()
-            flash('Artist: ' +
-                request.form['name'] + ' was successfully listed!')
-        except Exception as e:
-            flash('An error occured. Artist: ' +
-                request.form['name'] + 'could not be listed')
-            print(e)
-
+                name=name,
+                city=city,
+                state=state,
+                phone=phone,
+                genres=genres,
+                facebook_link=facebook_link,
+                image_link=image_link,
+                website=website,
+                seeking_venue=seeking_venue,
+                seeking_description=seeking_description
+            )
+    else:
+        flash('An error occured. Artist: ' + request.form['name'] + ' could not be listed. Please make sure you fill all the required fields.')
+        return render_template('forms/new_artist.html', form=form)
+    try:
+        db.session.add(form_artist_input)
+        db.session.commit()
+        flash('Artist: ' + request.form['name'] + ' was successfully listed!')
+    except Exception as e:
+        flash('An error occured. Artist: ' + request.form['name'] + ' could not be listed')
     return render_template('pages/home.html')
 
 
@@ -391,13 +387,16 @@ def create_shows():
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-
-    show = appmod.Show(
-        venue_id=request.form.get('venue_id'),
-        artist_id=request.form.get('artist_id'),
-        start_time=request.form.get('start_time')
-    )
-
+    form = ShowForm(request.form)
+    if request.method == 'POST' and form.validate():
+        show = appmod.Show(
+            venue_id=request.form.get('venue_id'),
+            artist_id=request.form.get('artist_id'),
+            start_time=request.form.get('start_time')
+        )
+    else:
+        flash("Ensure that you use the correct data format")
+        return render_template('forms/new_show.html', form=form)
     try:
         db.session.add(show)
         db.session.commit()
