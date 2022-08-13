@@ -1,11 +1,16 @@
 from datetime import datetime
 from flask_wtf import Form
+from pyparsing import Regex
 from wtforms import StringField, SelectField, SelectMultipleField, DateTimeField, BooleanField
-from wtforms.validators import DataRequired, AnyOf, URL
+from wtforms.validators import DataRequired, AnyOf, URL, Regexp
+
+
+phone_regex = "^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$"
+message = "Please enter a correct phone number!"
 
 class ShowForm(Form):
     artist_id = StringField(
-        'artist_id'
+    'artist_id'
     )
     venue_id = StringField(
         'venue_id'
@@ -83,7 +88,7 @@ class VenueForm(Form):
         'address', validators=[DataRequired()]
     )
     phone = StringField(
-        'phone'
+        'phone', validators=[Regexp(phone_regex, message=message), DataRequired()]
     )
     image_link = StringField(
         'image_link'
@@ -114,7 +119,7 @@ class VenueForm(Form):
         ]
     )
     facebook_link = StringField(
-        'facebook_link', validators=[URL()]
+        'facebook_link'
     )
     website_link = StringField(
         'website_link'
@@ -125,7 +130,6 @@ class VenueForm(Form):
     seeking_description = StringField(
         'seeking_description'
     )
-
 
 
 class ArtistForm(Form):
@@ -192,8 +196,7 @@ class ArtistForm(Form):
         ]
     )
     phone = StringField(
-        # TODO implement validation logic for phone 
-        'phone'
+        'phone', validators=[Regexp(phone_regex, message=message), DataRequired()]
     )
     image_link = StringField(
         'image_link'
@@ -224,7 +227,7 @@ class ArtistForm(Form):
      )
     facebook_link = StringField(
         # TODO implement enum restriction
-        'facebook_link', validators=[URL()]
+        'facebook_link'
      )
 
     website_link = StringField(
@@ -236,4 +239,3 @@ class ArtistForm(Form):
     seeking_description = StringField(
             'seeking_description'
      )
-

@@ -6,6 +6,8 @@ from email.utils import format_datetime
 from datetime import date
 import itertools
 import operator
+from re import RegexFlag
+from xml.dom import ValidationErr
 import dateutil.parser
 import babel
 from flask import render_template, request, flash, redirect, url_for
@@ -78,6 +80,8 @@ def show_venue(venue_id):
     regrouped_data_list = controller_funcs.show_venue_OR_artist_details(
         db=db, app_model=appmod, for_venue_id=True)
 
+    print(regrouped_data_list)
+
     venue_data = list(
         filter(lambda d: d['id'] == venue_id, regrouped_data_list))[0]
     return render_template('pages/show_venue.html', venue=venue_data)
@@ -129,8 +133,8 @@ def create_venue_submission():
                 seeking_description=seeking_description
             )
     else:
-        flash('An error occured. Venue: ' + request.form['name'] + ' could not be listed. Please make sure you fill all the required fields.')
-        return render_template('forms/new_venue.html', form=form)
+       flash('An error occured. ' + request.form['name'] + ' could not be listed. Please make sure you fill all the required fields correctly.')
+       return render_template('forms/new_venue.html', form=form)
     try:
         db.session.add(venue_form_input)
         db.session.commit()
@@ -354,7 +358,7 @@ def create_artist_submission():
                 seeking_description=seeking_description
             )
     else:
-        flash('An error occured. Artist: ' + request.form['name'] + ' could not be listed. Please make sure you fill all the required fields.')
+        flash('An error occured. ' + request.form['name'] + ' could not be listed. Please make sure you fill all the required fields correctly.')
         return render_template('forms/new_artist.html', form=form)
     try:
         db.session.add(form_artist_input)
